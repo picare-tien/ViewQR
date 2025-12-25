@@ -1,182 +1,155 @@
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
+import { Html5Qrcode } from "html5-qrcode"
 
-type ImageItem = {
-  name: string
-  url: string
-  created?: number
+type OrderItem = {
+  Ngay: string
+  tenkhachhang: string
+  SoluongSP: number
 }
 
-declare global {
-  interface Window {
-    BarcodeDetector?: any
-  }
-}
+export default function App() {
+  const photoBarcodeRef = useRef<HTMLInputElement>(null)
+  const scannerRef = useRef<Html5Qrcode | null>(null)
 
-function App() {
-  const [barcode, setBarcode] = useState("")
-  const [images, setImages] = useState<ImageItem[]>([])
+  const [result, setResult] = useState("")
+  const [data, setData] = useState<OrderItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  // ✅ khởi tạo scanner ẩn
+  useEffect(() => {
+  scannerRef.current = new Html5Qrcode("hidden-reader")
 
-  // 🔍 gọi API
-  const fetchImages = async (code: string) => {
-    setLoading(true)
+  return () => {
+    try {
+      scannerRef.current?.clear()
+    } catch {}
+  }
+}, [])
+
+
+  // 🔹 CHỤP ẢNH BARCODE → ĐỌC BARCODE
+  const handleBarcodeImage = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0]
+    if (!file || !scannerRef.current) return
+
     setError("")
-    setImages([])
+    setLoading(true)
+    setData([])
 
     try {
-      const res = await fetch(
-        `https://script.google.com/macros/s/XXXX/exec?barcode=${code}`
-      )
-      const data = await res.json()
-      setImages(data)
+      const decodedText = await scannerRef.current.scanFile(file, true)
+      setResult(decodedText)
+      await callWebhook(decodedText)
     } catch {
-      setError("Không tải được hình ảnh")
+      setError("❌ Không đọc được barcode, hãy chụp rõ hơn")
     } finally {
       setLoading(false)
+      e.target.value = "" // cho phép chụp lại cùng ảnh
     }
   }
 
-  // 📷 mở camera
-  const openCamera = async () => {
-    setError("")
+  // 🔗 gọi webhook lấy dữ liệu
+  const callWebhook = async (code: string) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        videoRef.current.play()
+      const res = await fetch(
+        `https://script.google.com/macros/s/XXXX/exec?barcode=${encodeURIComponent(
+          code
+        )}`
+      )
+      const json = await res.json()
+
+      if (!Array.isArray(json)) {
+        setError("Dữ liệu trả về không hợp lệ")
+        return
       }
+
+      setData(json)
     } catch {
-      setError("Không mở được camera")
+      setError("Không gọi được dữ liệu")
     }
-  }
-
-  // 📸 chụp ảnh + đọc barcode
-  const captureAndDetect = async () => {
-    if (!window.BarcodeDetector) {
-      setError("Thiết bị không hỗ trợ đọc barcode")
-      return
-    }
-
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    if (!video || !canvas) return
-
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    ctx.drawImage(video, 0, 0)
-
-    const detector = new window.BarcodeDetector({
-      formats: ["ean_13", "ean_8", "code_128", "qr_code"],
-    })
-
-    const barcodes = await detector.detect(canvas)
-
-    if (barcodes.length === 0) {
-      setError("❌ Không tìm thấy barcode trong ảnh")
-      return
-    }
-
-    const code = barcodes[0].rawValue
-    setBarcode(code)
-    fetchImages(code)
-
-    // tắt camera
-    streamRef.current?.getTracks().forEach((t) => t.stop())
   }
 
   return (
     <div style={styles.container}>
-      <h2>📦 CHỤP ẢNH → ĐỌC BARCODE → XEM ẢNH</h2>
+      <h2>📷 CHỤP ẢNH BARCODE → XEM ĐƠN</h2>
 
-      <button onClick={openCamera} style={styles.button}>
-        📷 Mở camera
+      <button
+        style={styles.button}
+        onClick={() => photoBarcodeRef.current?.click()}
+      >
+        📸 Chụp ảnh barcode
       </button>
 
-      <video ref={videoRef} style={styles.video} />
+      <input
+        ref={photoBarcodeRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleBarcodeImage}
+        style={{ display: "none" }}
+      />
 
-      <button onClick={captureAndDetect} style={styles.captureBtn}>
-        📸 Chụp ảnh & tìm barcode
-      </button>
+      {/* html5-qrcode cần div tồn tại */}
+      <div id="hidden-reader" style={{ display: "none" }} />
 
-      <canvas ref={canvasRef} style={{ display: "none" }} />
-
-      {barcode && <p>🔎 Barcode: <b>{barcode}</b></p>}
-      {loading && <p>⏳ Đang tải ảnh...</p>}
+      {loading && <p>⏳ Đang xử lý...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <div style={styles.imageGrid}>
-        {images.map((img, i) => (
-          <div key={i} style={styles.card}>
-            <img src={img.url} style={styles.image} />
-            {img.created && (
-              <p style={styles.date}>
-                {new Date(img.created).toLocaleString()}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
+      {result && (
+        <p>
+          🔎 Barcode: <b>{result}</b>
+        </p>
+      )}
+
+      {data.length > 0 && (
+        <div style={styles.table}>
+          {data.map((item, index) => (
+            <div key={index} style={styles.card}>
+              <p>📅 Ngày: {item.Ngay}</p>
+              <p>👤 Khách hàng: {item.tenkhachhang}</p>
+              <p>📦 Số lượng SP: {item.SoluongSP}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {data.length === 0 && result && !loading && (
+        <p>❌ Không có dữ liệu cho barcode này</p>
+      )}
     </div>
   )
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
-    maxWidth: 600,
-    margin: "auto",
+    maxWidth: 500,
+    margin: "30px auto",
     padding: 20,
     textAlign: "center",
+    fontFamily: "Arial",
   },
   button: {
     width: "100%",
-    padding: 12,
-    background: "#2196F3",
-    color: "#fff",
-    border: "none",
+    padding: 14,
     fontSize: 16,
-  },
-  captureBtn: {
-    width: "100%",
-    padding: 12,
-    marginTop: 10,
-    background: "#4CAF50",
-    color: "#fff",
+    backgroundColor: "#4CAF50",
+    color: "white",
     border: "none",
-    fontSize: 16,
+    borderRadius: 6,
+    cursor: "pointer",
   },
-  video: {
-    width: "100%",
-    marginTop: 10,
-    borderRadius: 8,
-  },
-  imageGrid: {
+  table: {
     marginTop: 20,
     display: "grid",
-    gap: 16,
+    gap: 12,
   },
   card: {
     border: "1px solid #ddd",
-    padding: 10,
-    borderRadius: 8,
-  },
-  image: {
-    width: "100%",
-  },
-  date: {
-    fontSize: 12,
-    color: "#666",
+    padding: 12,
+    borderRadius: 6,
+    textAlign: "left",
   },
 }
-
-export default App
