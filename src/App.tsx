@@ -55,7 +55,7 @@ export default function App() {
   const callWebhook = async (code: string) => {
     try {
       const res = await fetch(
-        `https://script.google.com/macros/s/XXXX/exec?barcode=${encodeURIComponent(
+        `https://script.google.com/macros/s/AKfycbzGn1Ye6Y2nUej5SE34z3as5ibXCOCJrfLD405zZLSW6xmygHgXGWDtSSQHK7EyN7xb/exec?barcode=${encodeURIComponent(
           code
         )}`
       )
