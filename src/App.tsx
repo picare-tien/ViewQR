@@ -1,35 +1,35 @@
-import { useRef, useState, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Html5Qrcode } from "html5-qrcode"
 
-type OrderItem = {
-  Ngay: string
-  tenkhachhang: string
-  SoluongSP: number
+/** Ảnh trả về từ Google Script */
+type ImageItem = {
+  name: string
+  url: string
+  created?: number
 }
 
 export default function App() {
-  const photoBarcodeRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
-  const [result, setResult] = useState("")
-  const [data, setData] = useState<OrderItem[]>([])
+  const [barcode, setBarcode] = useState("")
+  const [images, setImages] = useState<ImageItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  // ✅ khởi tạo scanner ẩn
+  /* 🔧 khởi tạo html5-qrcode (ẩn) */
   useEffect(() => {
-  scannerRef.current = new Html5Qrcode("hidden-reader")
+    scannerRef.current = new Html5Qrcode("hidden-reader")
 
-  return () => {
-    try {
-      scannerRef.current?.clear()
-    } catch {}
-  }
-}, [])
+    return () => {
+      try {
+        scannerRef.current?.clear()
+      } catch {}
+    }
+  }, [])
 
-
-  // 🔹 CHỤP ẢNH BARCODE → ĐỌC BARCODE
-  const handleBarcodeImage = async (
+  /* 📸 chụp ảnh barcode → đọc barcode */
+  const handleCaptureBarcode = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0]
@@ -37,95 +37,101 @@ export default function App() {
 
     setError("")
     setLoading(true)
-    setData([])
+    setImages([])
+    setBarcode("")
 
     try {
       const decodedText = await scannerRef.current.scanFile(file, true)
-      setResult(decodedText)
-      await callWebhook(decodedText)
+      setBarcode(decodedText)
+      await fetchImages(decodedText)
     } catch {
-      setError("❌ Không đọc được barcode, hãy chụp rõ hơn")
+      setError("❌ Không đọc được barcode, hãy chụp rõ nét hơn")
     } finally {
       setLoading(false)
       e.target.value = "" // cho phép chụp lại cùng ảnh
     }
   }
 
-  // 🔗 gọi webhook lấy dữ liệu
-  const callWebhook = async (code: string) => {
+  /* 🔍 gọi API lấy ảnh theo barcode */
+  const fetchImages = async (code: string) => {
     try {
       const res = await fetch(
         `https://script.google.com/macros/s/AKfycbzGn1Ye6Y2nUej5SE34z3as5ibXCOCJrfLD405zZLSW6xmygHgXGWDtSSQHK7EyN7xb/exec?barcode=${encodeURIComponent(
           code
         )}`
       )
-      const json = await res.json()
 
-      if (!Array.isArray(json)) {
-        setError("Dữ liệu trả về không hợp lệ")
+      const data = await res.json()
+
+      if (!Array.isArray(data)) {
+        setError("Dữ liệu ảnh không hợp lệ")
         return
       }
 
-      setData(json)
+      setImages(data)
     } catch {
-      setError("Không gọi được dữ liệu")
+      setError("Không tải được hình ảnh")
     }
   }
 
   return (
     <div style={styles.container}>
-      <h2>📷 CHỤP ẢNH BARCODE → XEM ĐƠN</h2>
+      <h2>📦 XEM ẢNH THEO BARCODE</h2>
 
       <button
         style={styles.button}
-        onClick={() => photoBarcodeRef.current?.click()}
+        onClick={() => fileInputRef.current?.click()}
       >
         📸 Chụp ảnh barcode
       </button>
 
       <input
-        ref={photoBarcodeRef}
+        ref={fileInputRef}
         type="file"
         accept="image/*"
         capture="environment"
-        onChange={handleBarcodeImage}
+        onChange={handleCaptureBarcode}
         style={{ display: "none" }}
       />
 
-      {/* html5-qrcode cần div tồn tại */}
+      {/* html5-qrcode bắt buộc có div */}
       <div id="hidden-reader" style={{ display: "none" }} />
 
       {loading && <p>⏳ Đang xử lý...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {result && (
+      {barcode && (
         <p>
-          🔎 Barcode: <b>{result}</b>
+          🔎 Barcode: <b>{barcode}</b>
         </p>
       )}
 
-      {data.length > 0 && (
-        <div style={styles.table}>
-          {data.map((item, index) => (
-            <div key={index} style={styles.card}>
-              <p>📅 Ngày: {item.Ngay}</p>
-              <p>👤 Khách hàng: {item.tenkhachhang}</p>
-              <p>📦 Số lượng SP: {item.SoluongSP}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* 🖼️ HIỂN THỊ ẢNH */}
+      <div style={styles.imageGrid}>
+        {images.map((img, index) => (
+          <div key={index} style={styles.card}>
+            <img src={img.url} alt={img.name} style={styles.image} />
+            <p>{img.name}</p>
+            {img.created && (
+              <p style={styles.date}>
+                {new Date(img.created).toLocaleString()}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
 
-      {data.length === 0 && result && !loading && (
-        <p>❌ Không có dữ liệu cho barcode này</p>
+      {images.length === 0 && barcode && !loading && (
+        <p>❌ Không có hình cho barcode này</p>
       )}
     </div>
   )
 }
 
+/* 🎨 style đơn giản */
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
-    maxWidth: 500,
+    maxWidth: 600,
     margin: "30px auto",
     padding: 20,
     textAlign: "center",
@@ -141,15 +147,22 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 6,
     cursor: "pointer",
   },
-  table: {
+  imageGrid: {
     marginTop: 20,
     display: "grid",
-    gap: 12,
+    gap: 16,
   },
   card: {
     border: "1px solid #ddd",
-    padding: 12,
+    padding: 10,
+    borderRadius: 8,
+  },
+  image: {
+    width: "100%",
     borderRadius: 6,
-    textAlign: "left",
+  },
+  date: {
+    fontSize: 12,
+    color: "#666",
   },
 }
