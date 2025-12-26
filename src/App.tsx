@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 type ImageItem = {
   id: string;
   name: string;
-  createdDate: number;
+  created: number;
   // Nếu backend trả về url trực tiếp thì thêm field này
   // url?: string;
 };
@@ -113,7 +113,7 @@ export default function App() {
   <strong>Tên file:</strong> {img.name || "Không có tên"} <br />
   <strong>Thời gian chụp/tạo:</strong> 
   <span style={{ color: "#1976d2", fontWeight: "bold" }}>
-    {new Date(img.createdDate).toLocaleString("vi-VN", {
+    {new Date(img.created).toLocaleString("vi-VN", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
