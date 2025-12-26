@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 type ImageItem = {
   id: string;
   name: string;
-  createdDate: Date;
+  createdDate: String;
   // Nếu backend trả về url trực tiếp thì thêm field này
   // url?: string;
 };
