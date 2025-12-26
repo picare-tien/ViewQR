@@ -3,9 +3,7 @@ import { useEffect, useState } from "react";
 type ImageItem = {
   id: string;
   name: string;
-  created: number;
-  // Nếu backend trả về url trực tiếp thì thêm field này
-  // url?: string;
+  created: number; // Backend đã trả timestamp number nhờ .getTime()
 };
 
 const SCRIPT_URL =
@@ -14,126 +12,137 @@ const SCRIPT_URL =
 export default function App() {
   const [barcode, setBarcode] = useState("");
   const [images, setImages] = useState<ImageItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true); // Bắt đầu với loading vì lấy từ URL
+  const [error, setError] = useState<string | null>(null);
 
-  // Lấy barcode từ URL khi vào trang
+  // Lấy barcode từ URL và fetch ảnh ngay khi load trang
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("barcode");
-    if (code) {
-      setBarcode(code);
-      fetchImages(code);
+
+    if (!code) {
+      setError("Không tìm thấy mã đơn hàng trong liên kết.");
+      setLoading(false);
+      return;
     }
+
+    setBarcode(code);
+    fetchImages(code);
   }, []);
 
-  const fetchImages = async (code?: string) => {
-    const value = code || barcode;
-    if (!value.trim()) return;
-
+  const fetchImages = async (code: string) => {
     setLoading(true);
-    setError("");
+    setError(null);
     setImages([]);
 
     try {
-  const res = await fetch(
-    `${SCRIPT_URL}?action=list&barcode=${encodeURIComponent(value)}`
-  );
+      const res = await fetch(
+        `${SCRIPT_URL}?action=list&barcode=${encodeURIComponent(code)}`
+      );
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`Lỗi kết nối: ${res.status}`);
+      }
 
-  const data = await res.json();
+      const data = await res.json();
+      console.log("Dữ liệu từ API:", data);
 
-  console.log("Dữ liệu thô từ API:", data); // Debug quan trọng!
+      let imageList: ImageItem[] = [];
 
-  // Trường hợp 1: Backend trả về { success: true, data: [...] } hoặc { data: [...] }
-  if (data.data && Array.isArray(data.data)) {
-    setImages(data.data);
-    if (data.data.length === 0) {
-      setError("Không có ảnh cho barcode này");
+      if (data.data && Array.isArray(data.data)) {
+        imageList = data.data;
+      } else if (data.images && Array.isArray(data.images)) {
+        imageList = data.images;
+      } else if (Array.isArray(data)) {
+        imageList = data;
+      } else if (data.success === false) {
+        throw new Error(data.message || "Lỗi từ server");
+      } else {
+        throw new Error("Dữ liệu không hợp lệ");
+      }
+
+      // Sắp xếp ảnh mới nhất trước
+      imageList.sort((a, b) => b.created - a.created);
+
+      setImages(imageList);
+
+      if (imageList.length === 0) {
+        setError("Không tìm thấy ảnh nào cho mã đơn hàng này.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Không thể tải hình ảnh. Vui lòng thử lại sau.");
+    } finally {
+      setLoading(false);
     }
-    return;
-  }
-
-  // Trường hợp 2: Backend trả về { success: true, images: [...] } hoặc tương tự
-  if (data.images && Array.isArray(data.images)) {
-    setImages(data.images);
-    return;
-  }
-
-  // Trường hợp 3: Backend trả về mảng trực tiếp [...]
-  if (Array.isArray(data)) {
-    setImages(data);
-    return;
-  }
-
-  // Nếu có success: false hoặc message lỗi
-  if (data.success === false || data.message) {
-    setError(data.message || "Lỗi từ server");
-    return;
-  }
-
-  // Không khớp gì thì báo lỗi chung
-  throw new Error("Định dạng dữ liệu không hỗ trợ");
-} catch (err: any) {
-  console.error(err);
-  setError(err.message || "Không tải được hình ảnh. Vui lòng kiểm tra barcode và thử lại.");
-}
   };
 
   return (
     <div style={styles.container}>
-      <h2>📦 CẢM ƠN QUÝ KHÁCH ĐÃ TIN DÙNG SẢN PHẨM</h2>
-      <h2> Mã đơn hàng của quý khách: {barcode}</h2>
-      <h2> Hình ảnh sản phẩm khi xuất kho </h2>
+      <h1 style={styles.title}>📦 CẢM ƠN QUÝ KHÁCH ĐÃ TIN DÙNG SẢN PHẨM</h1>
       
-      {images.length > 0 ? (
+      {barcode && (
+        <h2 style={styles.orderCode}>
+          Mã đơn hàng của quý khách: <strong>{barcode}</strong>
+        </h2>
+      )}
+
+      <h2 style={styles.subtitle}>Hình ảnh sản phẩm khi xuất kho</h2>
+
+      {/* Loading */}
+      {loading && (
+        <p style={styles.loading}>⏳ Đang tải hình ảnh...</p>
+      )}
+
+      {/* Error */}
+      {error && (
+        <p style={styles.error}>⚠️ {error}</p>
+      )}
+
+      {/* Danh sách ảnh */}
+      {images.length > 0 && (
         <div style={styles.grid}>
           {images.map((img) => (
             <div key={img.id} style={styles.card}>
-              {/* Đây là phần sửa chính: thêm thẻ img và src */}
-              
               <img
                 src={`https://drive.google.com/thumbnail?id=${img.id}&sz=w1000`}
-                // Hoặc nếu backend trả về url đầy đủ thì dùng:
-                // src={img.url || `https://lh3.googleusercontent.com/d/${img.id}`}
-                
-                alt={img.name || "Ảnh sản phẩm"}
+                alt={img.name}
                 style={styles.image}
-                
-                
                 onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                  e.currentTarget.nextElementSibling?.removeAttribute("hidden");
+                  (e.target as HTMLImageElement).style.display = "none";
+                  const next = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                  next?.removeAttribute("hidden");
                 }}
               />
-              <p hidden>Không tải được ảnh này</p>
+              <p hidden style={styles.imgError}>
+                Không tải được ảnh này (có thể do quyền truy cập)
+              </p>
 
-              <div style={{ marginTop: 12, color: "#555", fontSize: 14 }}>
-  <strong>Tên file:</strong> {img.name || "Không có tên"} <br />
-  <strong>Thời gian chụp/tạo:</strong> 
-  <span style={{ color: "#1976d2", fontWeight: "bold" }}>
-    {new Date(img.created).toLocaleString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })}
-  </span>
-</div>
-
+              <div style={styles.info}>
+                <div><strong>Tên file:</strong> {img.name}</div>
+                <div>
+                  <strong>Thời gian xuất kho:</strong>
+                  <br />
+                  <span style={styles.dateTime}>
+                    {new Date(img.created).toLocaleString("vi-VN", {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              </div>
             </div>
           ))}
         </div>
-      ) : (
-        !loading &&
-        barcode && (
-          <p style={{ color: "#666", marginTop: 20 }}>
-            ❌ Không có ảnh cho barcode này
-          </p>
-        )
+      )}
+
+      {/* Không có ảnh nhưng không lỗi */}
+      {!loading && !error && images.length === 0 && barcode && (
+        <p style={styles.noImage}>❌ Chưa có ảnh cho đơn hàng này</p>
       )}
     </div>
   );
@@ -141,48 +150,84 @@ export default function App() {
 
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
-    maxWidth: 720,
-    margin: "30px auto",
-    padding: 20,
+    maxWidth: 900,
+    margin: "40px auto",
+    padding: "20px 16px",
     textAlign: "center",
-    fontFamily: "Arial, sans-serif",
+    fontFamily: "'Segoe UI', Arial, sans-serif",
+    background: "#f9f9f9",
+    minHeight: "100vh",
   },
-  input: {
-    width: "100%",
-    padding: 12,
-    marginBottom: 12,
-    fontSize: 16,
-    border: "1px solid #ccc",
-    borderRadius: 4,
+  title: {
+    fontSize: "28px",
+    color: "#2e7d32",
+    marginBottom: "16px",
+    fontWeight: "bold",
   },
-  button: {
-    width: "100%",
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: "#4CAF50",
-    color: "white",
-    border: "none",
-    borderRadius: 4,
-    cursor: "pointer",
+  orderCode: {
+    fontSize: "22px",
+    color: "#1976d2",
+    margin: "20px 0",
+  },
+  subtitle: {
+    fontSize: "20px",
+    color: "#424242",
+    margin: "30px 0 20px",
+  },
+  loading: {
+    fontSize: "18px",
+    color: "#666",
+    margin: "40px 0",
+  },
+  error: {
+    fontSize: "18px",
+    color: "#d32f2f",
+    background: "#ffebee",
+    padding: "16px",
+    borderRadius: "8px",
+    margin: "20px 0",
+    border: "1px solid #f44336",
+  },
+  noImage: {
+    fontSize: "18px",
+    color: "#666",
+    margin: "60px 0",
   },
   grid: {
-    marginTop: 24,
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: 20,
+    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+    gap: "24px",
+    marginTop: "32px",
   },
   card: {
-    border: "1px solid #ddd",
-    padding: 12,
-    borderRadius: 8,
-    background: "#fff",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    background: "white",
+    borderRadius: "12px",
+    overflow: "hidden",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+    padding: "16px",
   },
   image: {
     width: "100%",
-    maxHeight: "60vh",
+    maxHeight: "70vh",
     objectFit: "contain",
-    background: "#f8f9fa",
-    borderRadius: 4,
+    background: "#f5f5f5",
+    borderRadius: "8px",
+  },
+  imgError: {
+    color: "#d32f2f",
+    textAlign: "center",
+    padding: "20px",
+    fontSize: "14px",
+  },
+  info: {
+    marginTop: "16px",
+    textAlign: "left",
+    color: "#444",
+    lineHeight: 1.6,
+  },
+  dateTime: {
+    color: "#1976d2",
+    fontWeight: "bold",
+    fontSize: "15px",
   },
 };
