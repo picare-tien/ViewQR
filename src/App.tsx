@@ -74,8 +74,7 @@ export default function App() {
     }
   }
 
-  return (
-    <div style={styles.container}>
+  return (<div style={styles.container}>
       <h2>📦 XEM ẢNH THEO BARCODE</h2>
 
       <button
@@ -94,7 +93,6 @@ export default function App() {
         style={{ display: "none" }}
       />
 
-      {/* html5-qrcode bắt buộc có div */}
       <div id="hidden-reader" style={{ display: "none" }} />
 
       {loading && <p>⏳ Đang xử lý...</p>}
@@ -106,20 +104,29 @@ export default function App() {
         </p>
       )}
 
-      {/* 🖼️ HIỂN THỊ ẢNH */}
-      <div style={styles.imageGrid}>
-        {images.map((img, index) => (
-          <div key={index} style={styles.card}>
-            <img src={img.url} alt={img.name} style={styles.image} />
-            <p>{img.name}</p>
-            {img.created && (
-              <p style={styles.date}>
-                {new Date(img.created).toLocaleString()}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
+      {images.length > 0 && (
+        <div style={styles.imageGrid}>
+          {images.map((img, index) => (
+            <div key={index} style={styles.card}>
+              <div style={styles.imageWrapper}>
+                <img
+                  src={img.url}
+                  alt={img.name}
+                  style={styles.image}
+                />
+              </div>
+
+              <p style={styles.imageName}>{img.name}</p>
+
+              {img.created && (
+                <p style={styles.date}>
+                  {new Date(img.created).toLocaleString()}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {images.length === 0 && barcode && !loading && (
         <p>❌ Không có hình cho barcode này</p>
@@ -128,41 +135,67 @@ export default function App() {
   )
 }
 
-/* 🎨 style đơn giản */
+// 🎨 STYLES NẰM CHUNG TRONG FILE
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
     maxWidth: 600,
-    margin: "30px auto",
-    padding: 20,
+    margin: "20px auto",
+    padding: 16,
     textAlign: "center",
     fontFamily: "Arial",
   },
+
   button: {
     width: "100%",
     padding: 14,
     fontSize: 16,
     backgroundColor: "#4CAF50",
-    color: "white",
+    color: "#fff",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     cursor: "pointer",
   },
+
   imageGrid: {
     marginTop: 20,
     display: "grid",
+    gridTemplateColumns: "1fr",
     gap: 16,
   },
+
   card: {
     border: "1px solid #ddd",
-    padding: 10,
-    borderRadius: 8,
+    borderRadius: 10,
+    padding: 12,
+    background: "#fff",
   },
-  image: {
+
+  imageWrapper: {
     width: "100%",
-    borderRadius: 6,
+    height: 280,
+    overflow: "hidden",
+    borderRadius: 8,
+    background: "#f5f5f5",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
+
+  image: {
+    maxWidth: "100%",
+    maxHeight: "100%",
+    objectFit: "contain",
+  },
+
+  imageName: {
+    fontSize: 14,
+    marginTop: 8,
+    wordBreak: "break-all",
+  },
+
   date: {
     fontSize: 12,
     color: "#666",
+    marginTop: 4,
   },
 }
