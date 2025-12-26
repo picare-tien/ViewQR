@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 type ImageItem = {
   id: string;
   name: string;
-  created: number;
+  createdDate: Date;
   // Nếu backend trả về url trực tiếp thì thêm field này
   // url?: string;
 };
@@ -83,27 +83,10 @@ export default function App() {
 
   return (
     <div style={styles.container}>
-      <h2>📦 XEM ẢNH THEO BARCODE</h2>
-
-      <input
-        type="text"
-        value={barcode}
-        onChange={(e) => setBarcode(e.target.value)}
-        placeholder="Nhập barcode..."
-        style={styles.input}
-      />
-
-      <button
-        onClick={() => fetchImages()}
-        style={styles.button}
-        disabled={loading}
-      >
-        🔍 Tìm ảnh
-      </button>
-
-      {loading && <p>⏳ Đang tải...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
+      <h2>📦 CẢM ƠN QUÝ KHÁCH ĐÃ TIN DÙNG SẢN PHẨM</h2>
+      <h2> Mã đơn hàng của quý khách: {barcode}</h2>
+      <h2> Hình ảnh sản phẩm khi xuất kho </h2>
+      
       {images.length > 0 ? (
         <div style={styles.grid}>
           {images.map((img) => (
@@ -126,10 +109,21 @@ export default function App() {
               />
               <p hidden>Không tải được ảnh này</p>
 
-              <small>
-                {img.name} <br />
-                {new Date(img.created).toLocaleString()}
-              </small>
+              <div style={{ marginTop: 12, color: "#555", fontSize: 14 }}>
+  <strong>Tên file:</strong> {img.name || "Không có tên"} <br />
+  <strong>Thời gian chụp/tạo:</strong> 
+  <span style={{ color: "#1976d2", fontWeight: "bold" }}>
+    {new Date(img.createdDate).toLocaleString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })}
+  </span>
+</div>
+
             </div>
           ))}
         </div>
