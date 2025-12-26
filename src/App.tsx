@@ -1,103 +1,165 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
 
 type ImageItem = {
-  id: string
-  name: string
-  created: number
-}
+  id: string;
+  name: string;
+  created: number;
+  // Nếu backend trả về url trực tiếp thì thêm field này
+  // url?: string;
+};
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIeItASZdHyvWcuuBm37XA7BkmKfQJfB86OKxupbdKdUwRQJCEbxKBq_fRtVG6XEe-/exec"
+const SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbx8c1lRQtQaXzcqGB7ciQk323Z0o7M8Hr1vNrefAyjl_kSD82Nnd3ihDZla5sXspjXu/exec";
 
 export default function App() {
-  const [barcode, setBarcode] = useState("")
-  const [images, setImages] = useState<ImageItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [barcode, setBarcode] = useState("");
+  const [images, setImages] = useState<ImageItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // 🔗 LẤY BARCODE TỪ URL
+  // Lấy barcode từ URL khi vào trang
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const code = params.get("barcode")
-
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("barcode");
     if (code) {
-      setBarcode(code)
-      fetchImages(code)
+      setBarcode(code);
+      fetchImages(code);
     }
-  }, [])
+  }, []);
 
-  // 🔍 GỌI API
   const fetchImages = async (code?: string) => {
-    const value = code || barcode
-    if (!value) return
+    const value = code || barcode;
+    if (!value.trim()) return;
 
-    setLoading(true)
-    setError("")
-    setImages([])
+    setLoading(true);
+    setError("");
+    setImages([]);
 
     try {
-      const res = await fetch(
-        `${SCRIPT_URL}?action=list&barcode=${encodeURIComponent(value)}`
-      )
-      const data = await res.json()
-      setImages(data)
-    } catch {
-      setError("Không tải được hình ảnh")
-    } finally {
-      setLoading(false)
+  const res = await fetch(
+    `${SCRIPT_URL}?action=list&barcode=${encodeURIComponent(value)}`
+  );
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const data = await res.json();
+
+  console.log("Dữ liệu thô từ API:", data); // Debug quan trọng!
+
+  // Trường hợp 1: Backend trả về { success: true, data: [...] } hoặc { data: [...] }
+  if (data.data && Array.isArray(data.data)) {
+    setImages(data.data);
+    if (data.data.length === 0) {
+      setError("Không có ảnh cho barcode này");
     }
+    return;
   }
+
+  // Trường hợp 2: Backend trả về { success: true, images: [...] } hoặc tương tự
+  if (data.images && Array.isArray(data.images)) {
+    setImages(data.images);
+    return;
+  }
+
+  // Trường hợp 3: Backend trả về mảng trực tiếp [...]
+  if (Array.isArray(data)) {
+    setImages(data);
+    return;
+  }
+
+  // Nếu có success: false hoặc message lỗi
+  if (data.success === false || data.message) {
+    setError(data.message || "Lỗi từ server");
+    return;
+  }
+
+  // Không khớp gì thì báo lỗi chung
+  throw new Error("Định dạng dữ liệu không hỗ trợ");
+} catch (err: any) {
+  console.error(err);
+  setError(err.message || "Không tải được hình ảnh. Vui lòng kiểm tra barcode và thử lại.");
+}
+  };
 
   return (
     <div style={styles.container}>
       <h2>📦 XEM ẢNH THEO BARCODE</h2>
 
       <input
+        type="text"
         value={barcode}
         onChange={(e) => setBarcode(e.target.value)}
         placeholder="Nhập barcode..."
         style={styles.input}
       />
 
-      <button onClick={() => fetchImages()} style={styles.button}>
+      <button
+        onClick={() => fetchImages()}
+        style={styles.button}
+        disabled={loading}
+      >
         🔍 Tìm ảnh
       </button>
 
       {loading && <p>⏳ Đang tải...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <div style={styles.grid}>
-        {images.map((img) => (
-          <div key={img.id} style={styles.card}>
-            <img
-              src={`${SCRIPT_URL}?action=image&id=${img.id}`}
-              style={styles.image}
-              loading="lazy"
-            />
-            <p>{new Date(img.created).toLocaleString()}</p>
-          </div>
-        ))}
-      </div>
+      {images.length > 0 ? (
+        <div style={styles.grid}>
+          {images.map((img) => (
+            <div key={img.id} style={styles.card}>
+              {/* Đây là phần sửa chính: thêm thẻ img và src */}
+              
+              <img
+                src={`https://drive.google.com/thumbnail?id=${img.id}&sz=w1000`}
+                // Hoặc nếu backend trả về url đầy đủ thì dùng:
+                // src={img.url || `https://lh3.googleusercontent.com/d/${img.id}`}
+                
+                alt={img.name || "Ảnh sản phẩm"}
+                style={styles.image}
+                
+                
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                  e.currentTarget.nextElementSibling?.removeAttribute("hidden");
+                }}
+              />
+              <p hidden>Không tải được ảnh này</p>
 
-      {images.length === 0 && !loading && barcode && (
-        <p>❌ Không có ảnh cho barcode này</p>
+              <small>
+                {img.name} <br />
+                {new Date(img.created).toLocaleString()}
+              </small>
+            </div>
+          ))}
+        </div>
+      ) : (
+        !loading &&
+        barcode && (
+          <p style={{ color: "#666", marginTop: 20 }}>
+            ❌ Không có ảnh cho barcode này
+          </p>
+        )
       )}
     </div>
-  )
+  );
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
-    maxWidth: 600,
+    maxWidth: 720,
     margin: "30px auto",
     padding: 20,
     textAlign: "center",
-    fontFamily: "Arial",
+    fontFamily: "Arial, sans-serif",
   },
   input: {
     width: "100%",
     padding: 12,
-    marginBottom: 10,
+    marginBottom: 12,
     fontSize: 16,
+    border: "1px solid #ccc",
+    borderRadius: 4,
   },
   button: {
     width: "100%",
@@ -106,22 +168,27 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#4CAF50",
     color: "white",
     border: "none",
+    borderRadius: 4,
     cursor: "pointer",
   },
   grid: {
-    marginTop: 20,
+    marginTop: 24,
     display: "grid",
-    gap: 16,
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: 20,
   },
   card: {
     border: "1px solid #ddd",
-    padding: 10,
+    padding: 12,
     borderRadius: 8,
+    background: "#fff",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
   },
   image: {
     width: "100%",
-    maxHeight: "70vh",
+    maxHeight: "60vh",
     objectFit: "contain",
-    background: "#f5f5f5",
+    background: "#f8f9fa",
+    borderRadius: 4,
   },
-}
+};
