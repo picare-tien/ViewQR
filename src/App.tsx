@@ -6,7 +6,7 @@ type ImageItem = {
   created: number
 }
 
-const SCRIPT_URL = "https://script.google.com/macros/s/XXXX/exec"
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIeItASZdHyvWcuuBm37XA7BkmKfQJfB86OKxupbdKdUwRQJCEbxKBq_fRtVG6XEe-/exec"
 
 export default function App() {
   const [barcode, setBarcode] = useState("")
