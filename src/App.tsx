@@ -113,6 +113,8 @@ export default function App() {
                   src={img.url}
                   alt={img.name}
                   style={styles.image}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
                 />
               </div>
 
@@ -181,11 +183,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "center",
   },
 
-  image: {
-    maxWidth: "100%",
-    maxHeight: "100%",
-    objectFit: "contain",
-  },
+ image: {
+  width: "100%",
+  maxHeight: "70vh",
+  objectFit: "contain",
+  borderRadius: 6,
+  background: "#f5f5f5",
+},
 
   imageName: {
     fontSize: 14,
